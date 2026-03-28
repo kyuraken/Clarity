@@ -8,13 +8,27 @@ import Accounts from './pages/Accounts';
 import Login from './pages/Login';
 import './App.css';
 
+function ClarityIcon({ size = 36 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="160" rx="30" fill="#534AB7"/>
+      <path d="M 102 43 A 46 46 0 1 0 102 117" fill="none" stroke="white" strokeWidth="13" strokeLinecap="round"/>
+      <rect x="68" y="89" width="7" height="11" rx="2" fill="white" opacity="0.9"/>
+      <rect x="77" y="76" width="7" height="24" rx="2" fill="white" opacity="0.9"/>
+      <rect x="86" y="61" width="7" height="39" rx="2" fill="white" opacity="0.9"/>
+      <circle cx="79" cy="80" r="26" fill="white" fillOpacity="0.13" stroke="white" strokeWidth="3"/>
+      <line x1="98" y1="99" x2="118" y2="119" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function AppContent() {
   const { user, loading, logout } = useAuth();
 
   if (loading) {
     return (
       <div className="loading-screen">
-        <div className="brand-icon">C</div>
+        <ClarityIcon size={48} />
         <p>Loading...</p>
       </div>
     );
@@ -29,7 +43,7 @@ function AppContent() {
       <div className="app">
         <nav className="sidebar">
           <div className="sidebar-brand">
-            <div className="brand-icon">C</div>
+            <ClarityIcon />
             <span className="brand-name">Clarity</span>
           </div>
           <div className="nav-links">

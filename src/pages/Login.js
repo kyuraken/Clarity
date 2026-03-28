@@ -1,6 +1,20 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
+function ClarityIcon({ size = 48 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+      <rect width="160" height="160" rx="30" fill="#534AB7"/>
+      <path d="M 102 43 A 46 46 0 1 0 102 117" fill="none" stroke="white" strokeWidth="13" strokeLinecap="round"/>
+      <rect x="68" y="89" width="7" height="11" rx="2" fill="white" opacity="0.9"/>
+      <rect x="77" y="76" width="7" height="24" rx="2" fill="white" opacity="0.9"/>
+      <rect x="86" y="61" width="7" height="39" rx="2" fill="white" opacity="0.9"/>
+      <circle cx="79" cy="80" r="26" fill="white" fillOpacity="0.13" stroke="white" strokeWidth="3"/>
+      <line x1="98" y1="99" x2="118" y2="119" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function Login() {
   const { loginWithGoogle } = useAuth();
 
@@ -16,10 +30,10 @@ function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="brand-icon">C</div>
+          <ClarityIcon size={48} />
           <h1>Clarity</h1>
         </div>
-        <p className="login-subtitle">Smart financial monitoring</p>
+        <p className="login-subtitle">See your money clearly.</p>
         <button className="google-btn" onClick={handleGoogleLogin}>
           <svg width="18" height="18" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>

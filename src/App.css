@@ -10,8 +10,8 @@
   --text-primary: #e8eaed;
   --text-secondary: #9aa0b0;
   --text-muted: #6b7185;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
+  --accent: #534AB7;
+  --accent-hover: #7F77DD;
   --green: #22c55e;
   --red: #ef4444;
   --orange: #f97316;
@@ -56,7 +56,7 @@ body {
 .brand-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--accent), #a855f7);
+  background: #534AB7;
   border-radius: 10px;
   display: flex;
   align-items: center;
