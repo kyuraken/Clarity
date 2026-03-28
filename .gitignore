@@ -1,2 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build
+build/
+
+# Environment
+.env
+.env.local
+.env.production.local
+
 # Claude
 .claude/
