@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -22,8 +22,24 @@ function ClarityIcon({ size = 36 }) {
   );
 }
 
+function LogoutModal({ onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h3>Sign out</h3>
+        <p>Are you sure you want to sign out?</p>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-danger" onClick={onConfirm}>Sign out</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
   const { user, loading, logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   if (loading) {
     return (
@@ -70,7 +86,7 @@ function AppContent() {
               <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
               <div className="user-details">
                 <span className="user-name">{user.displayName}</span>
-                <button className="logout-btn" onClick={logout}>Sign out</button>
+                <button className="logout-btn" onClick={() => setShowLogoutModal(true)}>Sign out</button>
               </div>
             </div>
           </div>
@@ -83,6 +99,12 @@ function AppContent() {
             <Route path="/accounts" element={<Accounts />} />
           </Routes>
         </main>
+      {showLogoutModal && (
+        <LogoutModal
+          onConfirm={() => { setShowLogoutModal(false); logout(); }}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      )}
       </div>
     </Router>
   );
