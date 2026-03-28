@@ -1,12 +1,29 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Alerts from './pages/Alerts';
 import Accounts from './pages/Accounts';
+import Login from './pages/Login';
 import './App.css';
 
-function App() {
+function AppContent() {
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="brand-icon">C</div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <Router>
       <div className="app">
@@ -35,9 +52,12 @@ function App() {
             </NavLink>
           </div>
           <div className="sidebar-footer">
-            <div className="connection-status connected">
-              <span className="status-dot"></span>
-              Bank Connected
+            <div className="user-info">
+              <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
+              <div className="user-details">
+                <span className="user-name">{user.displayName}</span>
+                <button className="logout-btn" onClick={logout}>Sign out</button>
+              </div>
             </div>
           </div>
         </nav>
@@ -51,6 +71,14 @@ function App() {
         </main>
       </div>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
