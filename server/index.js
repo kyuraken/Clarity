@@ -5,7 +5,9 @@ require('dotenv').config();
 require('dotenv').config({ path: '../.env' });
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://claritymanager.vercel.app'],
+}));
 app.use(express.json());
 
 // Plaid client setup
