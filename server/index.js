@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
+require('dotenv').config();
 require('dotenv').config({ path: '../.env' });
 
 const app = express();
