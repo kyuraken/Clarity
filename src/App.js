@@ -5,7 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Alerts from './pages/Alerts';
 import Accounts from './pages/Accounts';
-import Login from './pages/Login';
+import Landing from './pages/Landing';
 import './App.css';
 
 function ClarityIcon({ size = 36 }) {
@@ -51,7 +51,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Login />;
+    return <Landing />;
   }
 
   return (
