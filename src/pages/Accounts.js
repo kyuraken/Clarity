@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 
-const API_URL = 'http://localhost:8080';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 function PlaidLinkButton({ onSuccess }) {
   const [linkToken, setLinkToken] = useState(null);
@@ -46,16 +46,36 @@ function PlaidLinkButton({ onSuccess }) {
   );
 }
 
+function RemoveModal({ accountName, onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h3>Remove account</h3>
+        <p>Are you sure you want to disconnect <strong>{accountName}</strong>? This will remove all associated data.</p>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-danger" onClick={onConfirm}>Remove</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Accounts() {
   const [accounts, setAccounts] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [removeTarget, setRemoveTarget] = useState(null);
 
   const fetchAccounts = useCallback(() => {
     setLoading(true);
-    fetch(`${API_URL}/api/accounts`)
-      .then(res => res.json())
-      .then(data => {
-        setAccounts(data.accounts || []);
+    Promise.all([
+      fetch(`${API_URL}/api/accounts`).then(r => r.json()),
+      fetch(`${API_URL}/api/items`).then(r => r.json()),
+    ])
+      .then(([accountData, itemData]) => {
+        setAccounts(accountData.accounts || []);
+        setItems(itemData.items || []);
         setLoading(false);
       })
       .catch(err => {
@@ -68,9 +88,22 @@ export default function Accounts() {
     fetchAccounts();
   }, [fetchAccounts]);
 
+  function handleRemove(itemId) {
+    fetch(`${API_URL}/api/accounts/${itemId}`, { method: 'DELETE' })
+      .then(res => res.json())
+      .then(() => {
+        setRemoveTarget(null);
+        fetchAccounts();
+      })
+      .catch(err => console.error('Error removing account:', err));
+  }
+
   function formatBalance(amount) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   }
+
+  // Group accounts by item_id so we can show a remove button per bank connection
+  const itemId = items.length > 0 ? items[0].item_id : null;
 
   return (
     <div>
@@ -78,6 +111,17 @@ export default function Accounts() {
         <h1>Accounts</h1>
         <p>Manage your linked financial accounts</p>
       </div>
+
+      {items.length > 0 && (
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            className="btn btn-danger"
+            onClick={() => setRemoveTarget({ itemId, name: 'linked bank' })}
+          >
+            Disconnect bank
+          </button>
+        </div>
+      )}
 
       <div className="accounts-grid">
         {accounts.map(account => (
@@ -102,6 +146,14 @@ export default function Accounts() {
         <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '20px' }}>
           Loading accounts...
         </p>
+      )}
+
+      {removeTarget && (
+        <RemoveModal
+          accountName={removeTarget.name}
+          onConfirm={() => handleRemove(removeTarget.itemId)}
+          onCancel={() => setRemoveTarget(null)}
+        />
       )}
     </div>
   );

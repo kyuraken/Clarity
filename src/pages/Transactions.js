@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { transactions as mockTransactions, categoryColors } from '../data/mockData';
+import { categoryColors } from '../data/mockData';
 
-const API_URL = 'http://localhost:8080';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 const PER_PAGE = 15;
 
 export default function Transactions() {
@@ -13,28 +13,26 @@ export default function Transactions() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    // try fetching from Plaid backend, fall back to mock data
     fetch(`${API_URL}/api/transactions`)
       .then(res => res.json())
       .then(data => {
         if (data.transactions && data.transactions.length > 0) {
-          // format Plaid transactions to match our structure
           const formatted = data.transactions.map((t, i) => ({
             id: t.transaction_id || `plaid_${i}`,
             date: t.date || t.authorized_date,
             merchant: t.merchant_name || t.name || 'Unknown',
             category: t.personal_finance_category?.primary || t.category?.[0] || 'Other',
-            amount: -t.amount, // plaid uses positive = spending, we use negative
+            amount: -t.amount,
             pending: t.pending || false,
           }));
           setTransactions(formatted);
         } else {
-          setTransactions(mockTransactions);
+          setTransactions([]);
         }
         setLoading(false);
       })
       .catch(() => {
-        setTransactions(mockTransactions);
+        setTransactions([]);
         setLoading(false);
       });
   }, []);

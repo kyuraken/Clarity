@@ -105,6 +105,47 @@ app.get('/api/transactions', async (req, res) => {
   }
 });
 
+// remove a linked bank account
+app.delete('/api/accounts/:itemId', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const accessToken = accessTokens[itemId];
+
+    if (!accessToken) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // Tell Plaid to remove the item
+    await plaidClient.itemRemove({ access_token: accessToken });
+
+    // Remove from our storage
+    delete accessTokens[itemId];
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing account:', error.response?.data || error);
+    res.status(500).json({ error: 'Failed to remove account' });
+  }
+});
+
+// list connected items (so frontend knows item IDs)
+app.get('/api/items', async (req, res) => {
+  try {
+    const items = [];
+    for (const [itemId, accessToken] of Object.entries(accessTokens)) {
+      const response = await plaidClient.itemGet({ access_token: accessToken });
+      items.push({
+        item_id: itemId,
+        institution_id: response.data.item.institution_id,
+      });
+    }
+    res.json({ items });
+  } catch (error) {
+    console.error('Error fetching items:', error.response?.data || error);
+    res.status(500).json({ error: 'Failed to fetch items' });
+  }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
