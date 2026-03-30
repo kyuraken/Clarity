@@ -178,7 +178,7 @@ export default function Landing() {
           <ClarityIcon size={24} />
           <span>Clarity</span>
         </div>
-        <p>© 2026 Clarity. See your money clearly. · Made by Jason Hua</p>
+        <p>© 2026 Clarity. See your money clearly. · Made by <a href="https://jasonhua.vercel.app/" target="_blank" rel="noopener noreferrer" className="landing-author">Jason Hua</a></p>
         <a
           href="https://github.com/kyuraken/Clarity"
           target="_blank"
