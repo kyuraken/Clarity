@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { categoryColors } from '../data/mockData';
+import { transactions as mockTransactions, categoryColors } from '../data/mockData';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 const PER_PAGE = 15;
 
-export default function Transactions() {
+export default function Transactions({ demoMode }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -13,6 +13,12 @@ export default function Transactions() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
+    if (demoMode) {
+      setTransactions(mockTransactions);
+      setLoading(false);
+      return;
+    }
+
     fetch(`${API_URL}/api/transactions`)
       .then(res => res.json())
       .then(data => {
@@ -35,7 +41,7 @@ export default function Transactions() {
         setTransactions([]);
         setLoading(false);
       });
-  }, []);
+  }, [demoMode]);
 
   // get unique categories
   const categories = ['All', ...new Set(transactions.map(t => t.category))];

@@ -65,7 +65,7 @@ const features = [
   },
 ];
 
-export default function Landing() {
+export default function Landing({ onTryDemo }) {
   const { loginWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -104,10 +104,15 @@ export default function Landing() {
           <p className="landing-subheadline">
             Connect your bank accounts, track spending, and get alerted to unusual activity — all in one place.
           </p>
-          <button className="landing-cta" onClick={handleLogin} disabled={loading}>
-            <GoogleIcon />
-            {loading ? 'Signing in...' : 'Get started with Google'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="landing-cta" onClick={handleLogin} disabled={loading}>
+              <GoogleIcon />
+              {loading ? 'Signing in...' : 'Get started with Google'}
+            </button>
+            <button className="landing-cta-ghost" onClick={onTryDemo}>
+              Try demo
+            </button>
+          </div>
           <p className="landing-disclaimer">Free to use. No credit card required.</p>
         </div>
 

@@ -37,9 +37,22 @@ function LogoutModal({ onConfirm, onCancel }) {
   );
 }
 
+function DemoBanner({ onSignIn, onExit }) {
+  return (
+    <div className="demo-banner">
+      <span>👀 You're viewing a demo with sample data.</span>
+      <div className="demo-banner-actions">
+        <button className="demo-banner-btn primary" onClick={onSignIn}>Sign in for real data</button>
+        <button className="demo-banner-btn ghost" onClick={onExit}>Exit demo</button>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, loginWithGoogle } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   if (loading) {
     return (
@@ -50,14 +63,22 @@ function AppContent() {
     );
   }
 
-  if (!user) {
-    return <Landing />;
+  if (!user && !demoMode) {
+    return <Landing onTryDemo={() => setDemoMode(true)} />;
   }
+
+  const isDemo = !user && demoMode;
 
   return (
     <Router>
       <div className="app">
-        <nav className="sidebar">
+        {isDemo && (
+          <DemoBanner
+            onSignIn={loginWithGoogle}
+            onExit={() => setDemoMode(false)}
+          />
+        )}
+        <nav className="sidebar" style={isDemo ? { top: '44px' } : {}}>
           <div className="sidebar-brand">
             <ClarityIcon />
             <span className="brand-name">Clarity</span>
@@ -82,29 +103,39 @@ function AppContent() {
             </NavLink>
           </div>
           <div className="sidebar-footer">
-            <div className="user-info">
-              <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
-              <div className="user-details">
-                <span className="user-name">{user.displayName}</span>
-                <button className="logout-btn" onClick={() => setShowLogoutModal(true)}>Sign out</button>
+            {isDemo ? (
+              <div className="user-info">
+                <div className="demo-avatar">D</div>
+                <div className="user-details">
+                  <span className="user-name">Demo User</span>
+                  <button className="logout-btn" onClick={() => setDemoMode(false)}>Exit demo</button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="user-info">
+                <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
+                <div className="user-details">
+                  <span className="user-name">{user.displayName}</span>
+                  <button className="logout-btn" onClick={() => setShowLogoutModal(true)}>Sign out</button>
+                </div>
+              </div>
+            )}
           </div>
         </nav>
-        <main className="main-content">
+        <main className="main-content" style={isDemo ? { marginTop: '44px' } : {}}>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/" element={<Dashboard demoMode={isDemo} />} />
+            <Route path="/transactions" element={<Transactions demoMode={isDemo} />} />
+            <Route path="/alerts" element={<Alerts demoMode={isDemo} />} />
+            <Route path="/accounts" element={<Accounts demoMode={isDemo} />} />
           </Routes>
         </main>
-      {showLogoutModal && (
-        <LogoutModal
-          onConfirm={() => { setShowLogoutModal(false); logout(); }}
-          onCancel={() => setShowLogoutModal(false)}
-        />
-      )}
+        {showLogoutModal && (
+          <LogoutModal
+            onConfirm={() => { setShowLogoutModal(false); logout(); }}
+            onCancel={() => setShowLogoutModal(false)}
+          />
+        )}
       </div>
     </Router>
   );

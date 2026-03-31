@@ -37,12 +37,19 @@ function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
-export default function Dashboard() {
+export default function Dashboard({ demoMode }) {
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (demoMode) {
+      setAccounts(mockAccounts);
+      setTransactions(mockTransactions);
+      setLoading(false);
+      return;
+    }
+
     Promise.all([
       fetch(`${API_URL}/api/accounts`).then(r => r.json()).catch(() => ({ accounts: [] })),
       fetch(`${API_URL}/api/transactions`).then(r => r.json()).catch(() => ({ transactions: [] })),
@@ -50,11 +57,7 @@ export default function Dashboard() {
       const realAccounts = accountData.accounts || [];
       const realTxns = txnData.transactions || [];
 
-      if (realAccounts.length > 0) {
-        setAccounts(realAccounts);
-      } else {
-        setAccounts(mockAccounts);
-      }
+      setAccounts(realAccounts.length > 0 ? realAccounts : []);
 
       if (realTxns.length > 0) {
         const formatted = realTxns.map((t, i) => ({
@@ -67,12 +70,12 @@ export default function Dashboard() {
         }));
         setTransactions(formatted);
       } else {
-        setTransactions(mockTransactions);
+        setTransactions([]);
       }
 
       setLoading(false);
     });
-  }, []);
+  }, [demoMode]);
 
   // Compute stats
   const totalBalance = accounts.reduce((sum, a) => {

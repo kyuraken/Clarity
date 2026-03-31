@@ -540,6 +540,67 @@ select.filter-input {
 
 .recharts-text { fill: var(--text-muted) !important; font-size: 12px; }
 
+/* ── Demo Banner ── */
+.demo-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: linear-gradient(90deg, #534AB7, #7F77DD);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 200;
+  color: white;
+}
+
+.demo-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.demo-banner-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.demo-banner-btn.primary {
+  background: white;
+  color: var(--accent);
+}
+
+.demo-banner-btn.primary:hover { background: rgba(255,255,255,0.9); }
+
+.demo-banner-btn.ghost {
+  background: rgba(255,255,255,0.15);
+  color: white;
+}
+
+.demo-banner-btn.ghost:hover { background: rgba(255,255,255,0.25); }
+
+.demo-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
 /* ── Loading Screen ── */
 .loading-screen {
   display: flex;
@@ -852,6 +913,23 @@ select.filter-input {
 
 .landing-cta:hover { background: var(--accent-hover); transform: translateY(-1px); }
 .landing-cta:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.landing-cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 28px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.landing-cta-ghost:hover { background: var(--bg-hover); border-color: var(--accent); }
 
 .landing-disclaimer {
   font-size: 13px;
