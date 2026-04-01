@@ -1,6 +1,3 @@
-// Simulates transaction data that would come from Plaid API
-// In production, this would be fetched from your backend which calls Plaid's /transactions/get
-
 const categories = [
   'Food & Drink', 'Shopping', 'Transportation', 'Entertainment',
   'Bills & Utilities', 'Health', 'Travel', 'Income', 'Transfer'
@@ -29,7 +26,7 @@ function seededRandom(seed) {
 function generateTransactions() {
   const rand = seededRandom(42);
   const transactions = [];
-  const now = new Date(2026, 2, 27); // March 27, 2026
+  const now = new Date(); // current date
 
   for (let i = 0; i < 180; i++) {
     const daysAgo = Math.floor(rand() * 90);
@@ -92,7 +89,7 @@ function generateTransactions() {
   const anomalies = [
     {
       id: 'txn_anom_001',
-      date: '2026-03-25',
+      date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3).toISOString().split('T')[0],
       merchant: 'Unknown Foreign Merchant',
       category: 'Shopping',
       amount: -487.99,
@@ -101,7 +98,7 @@ function generateTransactions() {
     },
     {
       id: 'txn_anom_002',
-      date: '2026-03-22',
+      date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).toISOString().split('T')[0],
       merchant: 'Best Buy',
       category: 'Shopping',
       amount: -1299.99,
@@ -110,7 +107,7 @@ function generateTransactions() {
     },
     {
       id: 'txn_anom_003',
-      date: '2026-03-20',
+      date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 8).toISOString().split('T')[0],
       merchant: 'ATM Withdrawal',
       category: 'Transfer',
       amount: -800.00,
@@ -119,7 +116,7 @@ function generateTransactions() {
     },
     {
       id: 'txn_anom_004',
-      date: '2026-03-18',
+      date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 10).toISOString().split('T')[0],
       merchant: 'Uber',
       category: 'Transportation',
       amount: -94.50,

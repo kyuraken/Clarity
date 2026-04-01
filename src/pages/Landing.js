@@ -104,7 +104,7 @@ export default function Landing({ onTryDemo }) {
           <p className="landing-subheadline">
             Connect your bank accounts, track spending, and get alerted to unusual activity — all in one place.
           </p>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="landing-cta-row">
             <button className="landing-cta" onClick={handleLogin} disabled={loading}>
               <GoogleIcon />
               {loading ? 'Signing in...' : 'Get started with Google'}

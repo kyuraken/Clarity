@@ -908,7 +908,6 @@ select.filter-input {
   border: none;
   cursor: pointer;
   transition: all 0.15s;
-  margin-bottom: 16px;
 }
 
 .landing-cta:hover { background: var(--accent-hover); transform: translateY(-1px); }
@@ -930,6 +929,14 @@ select.filter-input {
 }
 
 .landing-cta-ghost:hover { background: var(--bg-hover); border-color: var(--accent); }
+
+.landing-cta-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
 
 .landing-disclaimer {
   font-size: 13px;
