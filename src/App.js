@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -53,6 +53,14 @@ function AppContent() {
   const { user, loading, logout, loginWithGoogle } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [alertCount, setAlertCount] = useState(4);
+
+  useEffect(() => {
+    if (demoMode) {
+      const { transactions: mockTxns } = require('./data/mockData');
+      setAlertCount(mockTxns.filter(t => t.anomaly).length);
+    }
+  }, [demoMode]);
 
   if (loading) {
     return (
@@ -95,7 +103,7 @@ function AppContent() {
             <NavLink to="/alerts" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
               Alerts
-              <span className="alert-badge">4</span>
+              {alertCount > 0 && <span className="alert-badge">{alertCount}</span>}
             </NavLink>
             <NavLink to="/accounts" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
