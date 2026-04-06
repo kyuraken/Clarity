@@ -85,6 +85,94 @@ app.get('/api/accounts', async (req, res) => {
   }
 });
 
+// ── Anomaly Detection ──────────────────────────────────────────────────────
+
+function getMerchantName(t) {
+  return t.merchant_name || t.name || 'Unknown';
+}
+
+function getAmount(t) {
+  return Math.abs(t.amount); // Plaid: positive = spending
+}
+
+function daysBetween(dateA, dateB) {
+  return Math.abs(new Date(dateA) - new Date(dateB)) / (1000 * 60 * 60 * 24);
+}
+
+function calcMean(values) {
+  if (!values.length) return 0;
+  return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
+function calcStdDev(values, mean) {
+  if (values.length < 2) return 0;
+  const variance = values.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+function detectAnomalies(transactions) {
+  return transactions.map(txn => {
+    const merchant = getMerchantName(txn);
+    const amount = getAmount(txn);
+    const reasons = [];
+    let score = 0;
+
+    // 1. Amount vs merchant average (weight: 40%)
+    const sameM = transactions.filter(t => getMerchantName(t) === merchant && t !== txn);
+    if (sameM.length >= 2) {
+      const amounts = sameM.map(getAmount);
+      const mean = calcMean(amounts);
+      const std = calcStdDev(amounts, mean);
+      if (std > 0) {
+        const z = (amount - mean) / std;
+        if (z > 2) {
+          const multiplier = (amount / mean).toFixed(1);
+          reasons.push(`Amount is ${multiplier}x your typical spend at ${merchant}`);
+          score += Math.min((z - 2) / 3, 1) * 0.4;
+        }
+      }
+    }
+
+    // 2. New merchant never seen before (weight: 25%)
+    const prevTxns = transactions.filter(t => t !== txn && t.date < txn.date);
+    const isNew = prevTxns.length > 10 && !prevTxns.some(t => getMerchantName(t) === merchant);
+    if (isNew) {
+      reasons.push(`First time transaction at ${merchant}`);
+      score += 0.25;
+    }
+
+    // 3. Duplicate charge within 3 days (weight: 35%)
+    const duplicates = transactions.filter(t =>
+      t !== txn &&
+      getMerchantName(t) === merchant &&
+      Math.abs(getAmount(t) - amount) < 0.01 &&
+      daysBetween(t.date, txn.date) <= 3
+    );
+    if (duplicates.length > 0) {
+      reasons.push(`Possible duplicate charge — same amount at ${merchant} within 3 days`);
+      score += 0.35;
+    }
+
+    // 4. Large cash withdrawal (weight: 30%)
+    const name = (txn.name || '').toLowerCase();
+    if ((name.includes('atm') || name.includes('cash')) && amount > 400) {
+      reasons.push(`Large cash withdrawal of $${amount.toFixed(2)}`);
+      score += 0.3;
+    }
+
+    score = Math.min(score, 1);
+
+    if (score >= 0.5 && reasons.length > 0) {
+      txn.anomaly = {
+        score: Math.round(score * 100) / 100,
+        reason: reasons[0],
+      };
+    }
+
+    return txn;
+  });
+}
+
 // get transactions
 app.get('/api/transactions', async (req, res) => {
   try {
@@ -101,7 +189,8 @@ app.get('/api/transactions', async (req, res) => {
       allTransactions.push(...response.data.added);
     }
 
-    res.json({ transactions: allTransactions });
+    const withAnomalies = detectAnomalies(allTransactions);
+    res.json({ transactions: withAnomalies });
   } catch (error) {
     console.error('Error fetching transactions:', error.response?.data || error);
     res.status(500).json({ error: 'Failed to fetch transactions' });
