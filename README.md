@@ -1,6 +1,6 @@
 # Clarity
 
-A personal finance dashboard that connects to your bank accounts via Plaid to monitor transactions, detect spending anomalies, and surface alerts.
+A full-stack personal finance dashboard that connects to your bank accounts via Plaid to monitor transactions, detect spending anomalies, and surface alerts.
 
 **Live demo:** [claritymanager.vercel.app](https://claritymanager.vercel.app)
 
@@ -12,8 +12,9 @@ A personal finance dashboard that connects to your bank accounts via Plaid to mo
 - **Bank Account Linking** — Connect real bank accounts using Plaid Link
 - **Transaction History** — View, search, filter, and sort transactions across all accounts
 - **Real-Time Balances** — See live account balances from linked banks
-- **Anomaly Detection** — Statistical system flags unusual spending (see below)
-- **Alerts Dashboard** — Review flagged transactions with risk scores and reasons
+- **Anomaly Detection** — Statistical system flags unusual spending using Z-score analysis, HashSet-based merchant deduplication, and duplicate charge detection
+- **Alerts Dashboard** — Review flagged transactions with weighted risk scores and dismiss/restore functionality
+- **Persistent Storage** — User accounts, Plaid tokens, and dismissed alerts stored in MySQL with per-user data isolation
 - **Demo Mode** — Try the full app with sample data, no login required
 
 ---
@@ -25,8 +26,9 @@ A personal finance dashboard that connects to your bank accounts via Plaid to mo
 | Frontend | React 19, React Router, Recharts |
 | Authentication | Firebase Auth (Google OAuth) |
 | Backend | Node.js, Express |
+| Database | MySQL (Railway) |
 | Bank Data | Plaid API (Sandbox) |
-| Deployment | Vercel (frontend), Render (backend) |
+| Deployment | Vercel (frontend), Railway (backend + database) |
 
 ---
 
@@ -49,7 +51,7 @@ A Z-score above 2 means the amount is more than 2 standard deviations above aver
 
 ### 2. New Merchant Never Seen Before (25% weight)
 
-If a transaction appears at a merchant the user has **never transacted with before** (after at least 10 transactions of history), it's considered a new merchant and contributes to the score. All previously seen merchants are stored in a **HashSet** for O(1) lookup.
+If a transaction appears at a merchant the user has **never transacted with before** (after at least 10 transactions of history), it's considered a new merchant and contributes to the score. Previously seen merchants are stored in a **HashSet** for O(1) lookup.
 
 **Example:** A charge from "Unknown Foreign Merchant" with no prior history gets flagged.
 
@@ -80,12 +82,28 @@ Transactions with `score >= 0.5` are flagged and appear in the Alerts page with 
 
 ---
 
+## Database Schema
+
+Three tables store all persistent data, with foreign key constraints ensuring per-user data isolation:
+
+```sql
+users (id, email, display_name, created_at)
+plaid_items (item_id, user_id, access_token, created_at)
+dismissed_alerts (id, user_id, transaction_id, dismissed_at)
+```
+
+- `plaid_items` and `dismissed_alerts` both reference `users.id` with `ON DELETE CASCADE`
+- `dismissed_alerts` has a `UNIQUE KEY` on `(user_id, transaction_id)` to prevent duplicate dismissals
+
+---
+
 ## Running Locally
 
 ### Prerequisites
 - Node.js 18+
 - A [Plaid](https://plaid.com) account (Sandbox is free)
 - A [Firebase](https://firebase.google.com) project with Google Auth enabled
+- A MySQL database (Railway, PlanetScale, or local)
 
 ### 1. Clone the repo
 ```bash
@@ -107,9 +125,19 @@ cd server && npm install
 
 Create a `.env` file in the root:
 ```
+REACT_APP_API_URL=http://localhost:8080
+```
+
+Create a `.env` file in `server/`:
+```
 PLAID_CLIENT_ID=your_client_id
 PLAID_SECRET=your_sandbox_secret
 PLAID_ENV=sandbox
+MYSQL_HOST=your_mysql_host
+MYSQL_PORT=3306
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DATABASE=your_database_name
 ```
 
 ### 5. Run both servers
@@ -146,12 +174,13 @@ Clarity/
 │   │   ├── Accounts.js      # Linked bank accounts
 │   │   └── Landing.js       # Public landing page
 │   ├── contexts/
-│   │   └── AuthContext.js   # Firebase auth state
+│   │   └── AuthContext.js   # Firebase auth state + user registration
 │   ├── data/
 │   │   └── mockData.js      # Sample data for demo mode
 │   └── firebase.js          # Firebase configuration
 └── server/
-    └── index.js             # Express backend + anomaly detection
+    ├── index.js             # Express backend + anomaly detection
+    └── db.js                # MySQL connection pool + schema init
 ```
 
 ---

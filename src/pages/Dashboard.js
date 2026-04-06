@@ -61,7 +61,7 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
-export default function Dashboard({ demoMode }) {
+export default function Dashboard({ demoMode, dismissed = new Set() }) {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -141,7 +141,7 @@ export default function Dashboard({ demoMode }) {
     .slice(0, 7);
 
   // ── Anomalies ──
-  const flaggedTxns = transactions.filter(t => t.anomaly).slice(0, 3);
+  const flaggedTxns = transactions.filter(t => t.anomaly && !dismissed.has(t.id)).slice(0, 3);
 
   if (loading) {
     return (

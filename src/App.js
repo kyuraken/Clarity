@@ -151,7 +151,7 @@ function AppContent() {
         </nav>
         <main className="main-content" style={isDemo ? { marginTop: '44px' } : {}}>
           <Routes>
-            <Route path="/" element={<Dashboard demoMode={isDemo} />} />
+            <Route path="/" element={<Dashboard demoMode={isDemo} dismissed={dismissed} />} />
             <Route path="/transactions" element={<Transactions demoMode={isDemo} />} />
             <Route path="/alerts" element={<Alerts demoMode={isDemo} dismissed={dismissed} setDismissed={setDismissed} />} />
             <Route path="/accounts" element={<Accounts demoMode={isDemo} />} />
