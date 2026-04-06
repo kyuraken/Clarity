@@ -141,7 +141,7 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
     .slice(0, 7);
 
   // ── Anomalies ──
-  const flaggedTxns = transactions.filter(t => t.anomaly && !dismissed.has(t.id)).slice(0, 3);
+  const flaggedTxns = transactions.filter(t => t.anomaly && !dismissed.has(t.id));
 
   if (loading) {
     return (

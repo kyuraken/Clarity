@@ -78,8 +78,8 @@ function AppContent() {
   }, [user]);
 
   const { transactions: mockTxns } = require('./data/mockData');
-  const totalAlerts = user ? realAlertTotal : mockTxns.filter(t => t.anomaly).length;
-  const alertCount = Math.max(0, totalAlerts - dismissed.size);
+  const totalAlerts = user ? realAlertTotal : mockTxns.filter(t => t.anomaly && !dismissed.has(t.id)).length;
+  const alertCount = user ? Math.max(0, totalAlerts - dismissed.size) : totalAlerts;
 
   if (loading) {
     return (
