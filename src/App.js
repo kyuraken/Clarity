@@ -53,14 +53,11 @@ function AppContent() {
   const { user, loading, logout, loginWithGoogle } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
-  const [alertCount, setAlertCount] = useState(4);
+  const [dismissed, setDismissed] = useState(new Set());
 
-  useEffect(() => {
-    if (demoMode) {
-      const { transactions: mockTxns } = require('./data/mockData');
-      setAlertCount(mockTxns.filter(t => t.anomaly).length);
-    }
-  }, [demoMode]);
+  const { transactions: mockTxns } = require('./data/mockData');
+  const totalAlerts = mockTxns.filter(t => t.anomaly).length;
+  const alertCount = Math.max(0, totalAlerts - dismissed.size);
 
   if (loading) {
     return (
@@ -134,7 +131,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Dashboard demoMode={isDemo} />} />
             <Route path="/transactions" element={<Transactions demoMode={isDemo} />} />
-            <Route path="/alerts" element={<Alerts demoMode={isDemo} />} />
+            <Route path="/alerts" element={<Alerts demoMode={isDemo} dismissed={dismissed} setDismissed={setDismissed} />} />
             <Route path="/accounts" element={<Accounts demoMode={isDemo} />} />
           </Routes>
         </main>

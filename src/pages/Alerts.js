@@ -30,10 +30,9 @@ function scoreLabel(score) {
   return 'Low Risk';
 }
 
-export default function Alerts({ demoMode }) {
+export default function Alerts({ demoMode, dismissed = new Set(), setDismissed = () => {} }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dismissed, setDismissed] = useState(new Set());
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
