@@ -1,32 +1,34 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
-function PlaidLinkButton({ onSuccess }) {
+function PlaidLinkButton({ userId, onSuccess }) {
   const [linkToken, setLinkToken] = useState(null);
 
   useEffect(() => {
+    if (!userId) return;
     fetch(`${API_URL}/api/create-link-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: 'user-1' }),
+      body: JSON.stringify({ userId }),
     })
       .then(res => res.json())
       .then(data => setLinkToken(data.link_token))
       .catch(err => console.error('Error getting link token:', err));
-  }, []);
+  }, [userId]);
 
-  const onPlaidSuccess = useCallback((publicToken, metadata) => {
+  const onPlaidSuccess = useCallback((publicToken) => {
     fetch(`${API_URL}/api/exchange-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ public_token: publicToken }),
+      body: JSON.stringify({ public_token: publicToken, userId }),
     })
       .then(res => res.json())
       .then(() => onSuccess())
       .catch(err => console.error('Error exchanging token:', err));
-  }, [onSuccess]);
+  }, [userId, onSuccess]);
 
   const { open, ready } = usePlaidLink({
     token: linkToken,
@@ -61,17 +63,21 @@ function RemoveModal({ accountName, onConfirm, onCancel }) {
   );
 }
 
-export default function Accounts() {
+export default function Accounts({ demoMode }) {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [removeTarget, setRemoveTarget] = useState(null);
 
   const fetchAccounts = useCallback(() => {
+    if (demoMode) { setLoading(false); return; }
+    const userId = user?.uid;
+    if (!userId) { setLoading(false); return; }
     setLoading(true);
     Promise.all([
-      fetch(`${API_URL}/api/accounts`).then(r => r.json()),
-      fetch(`${API_URL}/api/items`).then(r => r.json()),
+      fetch(`${API_URL}/api/accounts?userId=${userId}`).then(r => r.json()),
+      fetch(`${API_URL}/api/items?userId=${userId}`).then(r => r.json()),
     ])
       .then(([accountData, itemData]) => {
         setAccounts(accountData.accounts || []);
@@ -82,14 +88,14 @@ export default function Accounts() {
         console.error('Error fetching accounts:', err);
         setLoading(false);
       });
-  }, []);
+  }, [demoMode, user]);
 
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
 
   function handleRemove(itemId) {
-    fetch(`${API_URL}/api/accounts/${itemId}`, { method: 'DELETE' })
+    fetch(`${API_URL}/api/accounts/${itemId}?userId=${user?.uid}`, { method: 'DELETE' })
       .then(res => res.json())
       .then(() => {
         setRemoveTarget(null);
@@ -139,7 +145,7 @@ export default function Accounts() {
           </div>
         ))}
 
-        <PlaidLinkButton onSuccess={fetchAccounts} />
+        {!demoMode && <PlaidLinkButton userId={user?.uid} onSuccess={fetchAccounts} />}
       </div>
 
       {loading && accounts.length === 0 && (

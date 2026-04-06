@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -49,14 +49,36 @@ function DemoBanner({ onSignIn, onExit }) {
   );
 }
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
 function AppContent() {
   const { user, loading, logout, loginWithGoogle } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [dismissed, setDismissed] = useState(new Set());
+  const [realAlertTotal, setRealAlertTotal] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      fetch(`${API_URL}/api/dismissed-alerts?userId=${user.uid}`)
+        .then(r => r.json())
+        .then(data => setDismissed(new Set(data.dismissed || [])))
+        .catch(() => {});
+      fetch(`${API_URL}/api/transactions?userId=${user.uid}`)
+        .then(r => r.json())
+        .then(data => {
+          const count = (data.transactions || []).filter(t => t.anomaly).length;
+          setRealAlertTotal(count);
+        })
+        .catch(() => {});
+    } else {
+      setDismissed(new Set());
+      setRealAlertTotal(0);
+    }
+  }, [user]);
 
   const { transactions: mockTxns } = require('./data/mockData');
-  const totalAlerts = mockTxns.filter(t => t.anomaly).length;
+  const totalAlerts = user ? realAlertTotal : mockTxns.filter(t => t.anomaly).length;
   const alertCount = Math.max(0, totalAlerts - dismissed.size);
 
   if (loading) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { transactions as mockTransactions } from '../data/mockData';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
@@ -31,6 +32,7 @@ function scoreLabel(score) {
 }
 
 export default function Alerts({ demoMode, dismissed = new Set(), setDismissed = () => {} }) {
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -42,7 +44,7 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
       return;
     }
 
-    fetch(`${API_URL}/api/transactions`)
+    fetch(`${API_URL}/api/transactions?userId=${user?.uid}`)
       .then(r => r.json())
       .then(data => {
         const txns = data.transactions || [];
@@ -65,7 +67,7 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
         setTransactions(mockTransactions);
         setLoading(false);
       });
-  }, [demoMode]);
+  }, [demoMode, user]);
 
   const flagged = transactions
     .filter(t => t.anomaly && !dismissed.has(t.id))
@@ -156,7 +158,12 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
             <button
               className="btn btn-ghost"
               style={{ marginTop: '16px' }}
-              onClick={() => setDismissed(new Set())}
+              onClick={() => {
+                setDismissed(new Set());
+                if (!demoMode && user) {
+                  fetch(`${API_URL}/api/dismissed-alerts?userId=${user.uid}`, { method: 'DELETE' }).catch(() => {});
+                }
+              }}
             >
               Restore dismissed
             </button>
@@ -190,7 +197,16 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
                 </div>
                 <button
                   className="btn btn-ghost"
-                  onClick={() => setDismissed(prev => new Set([...prev, t.id]))}
+                  onClick={() => {
+                    setDismissed(prev => new Set([...prev, t.id]));
+                    if (!demoMode && user) {
+                      fetch(`${API_URL}/api/dismissed-alerts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user.uid, transactionId: t.id }),
+                      }).catch(() => {});
+                    }
+                  }}
                 >
                   Dismiss
                 </button>

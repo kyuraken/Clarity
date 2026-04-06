@@ -4,6 +4,8 @@ const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 require('dotenv').config();
 require('dotenv').config({ path: '../.env' });
 
+const { pool, initDB } = require('./db');
+
 const app = express();
 app.use(cors({
   origin: ['http://localhost:3000', 'https://claritymanager.vercel.app'],
@@ -23,68 +25,6 @@ const configuration = new Configuration({
 
 const plaidClient = new PlaidApi(configuration);
 
-// store access tokens in memory (use a database in production)
-let accessTokens = {};
-
-// create a link token for the frontend
-app.post('/api/create-link-token', async (req, res) => {
-  try {
-    const response = await plaidClient.linkTokenCreate({
-      user: { client_user_id: req.body.userId || 'user-1' },
-      client_name: 'Clarity',
-      products: ['auth', 'transactions'],
-      country_codes: ['US'],
-      language: 'en',
-    });
-    res.json({ link_token: response.data.link_token });
-  } catch (error) {
-    console.error('Error creating link token:', error.response?.data || error);
-    res.status(500).json({ error: 'Failed to create link token' });
-  }
-});
-
-// exchange public token for access token
-app.post('/api/exchange-token', async (req, res) => {
-  try {
-    const response = await plaidClient.itemPublicTokenExchange({
-      public_token: req.body.public_token,
-    });
-    const accessToken = response.data.access_token;
-    const itemId = response.data.item_id;
-
-    // store the access token
-    accessTokens[itemId] = accessToken;
-
-    res.json({ item_id: itemId, success: true });
-  } catch (error) {
-    console.error('Error exchanging token:', error.response?.data || error);
-    res.status(500).json({ error: 'Failed to exchange token' });
-  }
-});
-
-// get accounts/balances
-app.get('/api/accounts', async (req, res) => {
-  try {
-    const tokenKeys = Object.keys(accessTokens);
-    if (tokenKeys.length === 0) {
-      return res.json({ accounts: [] });
-    }
-
-    const allAccounts = [];
-    for (const itemId of tokenKeys) {
-      const response = await plaidClient.accountsBalanceGet({
-        access_token: accessTokens[itemId],
-      });
-      allAccounts.push(...response.data.accounts);
-    }
-
-    res.json({ accounts: allAccounts });
-  } catch (error) {
-    console.error('Error fetching accounts:', error.response?.data || error);
-    res.status(500).json({ error: 'Failed to fetch accounts' });
-  }
-});
-
 // ── Anomaly Detection ──────────────────────────────────────────────────────
 
 function getMerchantName(t) {
@@ -92,7 +32,7 @@ function getMerchantName(t) {
 }
 
 function getAmount(t) {
-  return Math.abs(t.amount); // Plaid: positive = spending
+  return Math.abs(t.amount);
 }
 
 function daysBetween(dateA, dateB) {
@@ -174,19 +114,106 @@ function detectAnomalies(transactions) {
   });
 }
 
-// get transactions
-app.get('/api/transactions', async (req, res) => {
+// ── User Management ────────────────────────────────────────────────────────
+
+// Upsert user from Firebase on login
+app.post('/api/users', async (req, res) => {
+  const { uid, email, displayName } = req.body;
+  if (!uid) return res.status(400).json({ error: 'uid required' });
   try {
-    const tokenKeys = Object.keys(accessTokens);
-    if (tokenKeys.length === 0) {
-      return res.json({ transactions: [] });
+    await pool.execute(
+      `INSERT INTO users (id, email, display_name) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE email = VALUES(email), display_name = VALUES(display_name)`,
+      [uid, email || null, displayName || null]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error upserting user:', error);
+    res.status(500).json({ error: 'Failed to save user' });
+  }
+});
+
+// ── Plaid Link ─────────────────────────────────────────────────────────────
+
+app.post('/api/create-link-token', async (req, res) => {
+  const userId = req.body.userId;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    const response = await plaidClient.linkTokenCreate({
+      user: { client_user_id: userId },
+      client_name: 'Clarity',
+      products: ['auth', 'transactions'],
+      country_codes: ['US'],
+      language: 'en',
+    });
+    res.json({ link_token: response.data.link_token });
+  } catch (error) {
+    console.error('Error creating link token:', error.response?.data || error);
+    res.status(500).json({ error: 'Failed to create link token' });
+  }
+});
+
+app.post('/api/exchange-token', async (req, res) => {
+  const { public_token, userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    const response = await plaidClient.itemPublicTokenExchange({ public_token });
+    const accessToken = response.data.access_token;
+    const itemId = response.data.item_id;
+
+    await pool.execute(
+      `INSERT INTO plaid_items (item_id, user_id, access_token)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE access_token = VALUES(access_token)`,
+      [itemId, userId, accessToken]
+    );
+
+    res.json({ item_id: itemId, success: true });
+  } catch (error) {
+    console.error('Error exchanging token:', error.response?.data || error);
+    res.status(500).json({ error: 'Failed to exchange token' });
+  }
+});
+
+// ── Accounts ───────────────────────────────────────────────────────────────
+
+app.get('/api/accounts', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.json({ accounts: [] });
+  try {
+    const [rows] = await pool.execute(
+      'SELECT item_id, access_token FROM plaid_items WHERE user_id = ?',
+      [userId]
+    );
+    if (rows.length === 0) return res.json({ accounts: [] });
+
+    const allAccounts = [];
+    for (const row of rows) {
+      const response = await plaidClient.accountsBalanceGet({ access_token: row.access_token });
+      allAccounts.push(...response.data.accounts);
     }
+    res.json({ accounts: allAccounts });
+  } catch (error) {
+    console.error('Error fetching accounts:', error.response?.data || error);
+    res.status(500).json({ error: 'Failed to fetch accounts' });
+  }
+});
+
+// ── Transactions ───────────────────────────────────────────────────────────
+
+app.get('/api/transactions', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.json({ transactions: [] });
+  try {
+    const [rows] = await pool.execute(
+      'SELECT item_id, access_token FROM plaid_items WHERE user_id = ?',
+      [userId]
+    );
+    if (rows.length === 0) return res.json({ transactions: [] });
 
     const allTransactions = [];
-    for (const itemId of tokenKeys) {
-      const response = await plaidClient.transactionsSync({
-        access_token: accessTokens[itemId],
-      });
+    for (const row of rows) {
+      const response = await plaidClient.transactionsSync({ access_token: row.access_token });
       allTransactions.push(...response.data.added);
     }
 
@@ -198,21 +225,20 @@ app.get('/api/transactions', async (req, res) => {
   }
 });
 
-// remove a linked bank account
+// ── Remove Account ─────────────────────────────────────────────────────────
+
 app.delete('/api/accounts/:itemId', async (req, res) => {
+  const { itemId } = req.params;
+  const { userId } = req.query;
   try {
-    const { itemId } = req.params;
-    const accessToken = accessTokens[itemId];
+    const [rows] = await pool.execute(
+      'SELECT access_token FROM plaid_items WHERE item_id = ? AND user_id = ?',
+      [itemId, userId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Account not found' });
 
-    if (!accessToken) {
-      return res.status(404).json({ error: 'Account not found' });
-    }
-
-    // Tell Plaid to remove the item
-    await plaidClient.itemRemove({ access_token: accessToken });
-
-    // Remove from our storage
-    delete accessTokens[itemId];
+    await plaidClient.itemRemove({ access_token: rows[0].access_token });
+    await pool.execute('DELETE FROM plaid_items WHERE item_id = ?', [itemId]);
 
     res.json({ success: true });
   } catch (error) {
@@ -221,14 +247,21 @@ app.delete('/api/accounts/:itemId', async (req, res) => {
   }
 });
 
-// list connected items (so frontend knows item IDs)
+// ── Items ──────────────────────────────────────────────────────────────────
+
 app.get('/api/items', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.json({ items: [] });
   try {
+    const [rows] = await pool.execute(
+      'SELECT item_id, access_token FROM plaid_items WHERE user_id = ?',
+      [userId]
+    );
     const items = [];
-    for (const [itemId, accessToken] of Object.entries(accessTokens)) {
-      const response = await plaidClient.itemGet({ access_token: accessToken });
+    for (const row of rows) {
+      const response = await plaidClient.itemGet({ access_token: row.access_token });
       items.push({
-        item_id: itemId,
+        item_id: row.item_id,
         institution_id: response.data.item.institution_id,
       });
     }
@@ -239,7 +272,58 @@ app.get('/api/items', async (req, res) => {
   }
 });
 
+// ── Dismissed Alerts ───────────────────────────────────────────────────────
+
+app.get('/api/dismissed-alerts', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.json({ dismissed: [] });
+  try {
+    const [rows] = await pool.execute(
+      'SELECT transaction_id FROM dismissed_alerts WHERE user_id = ?',
+      [userId]
+    );
+    res.json({ dismissed: rows.map(r => r.transaction_id) });
+  } catch (error) {
+    console.error('Error fetching dismissed alerts:', error);
+    res.status(500).json({ error: 'Failed to fetch dismissed alerts' });
+  }
+});
+
+app.post('/api/dismissed-alerts', async (req, res) => {
+  const { userId, transactionId } = req.body;
+  if (!userId || !transactionId) return res.status(400).json({ error: 'userId and transactionId required' });
+  try {
+    await pool.execute(
+      `INSERT IGNORE INTO dismissed_alerts (user_id, transaction_id) VALUES (?, ?)`,
+      [userId, transactionId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error dismissing alert:', error);
+    res.status(500).json({ error: 'Failed to dismiss alert' });
+  }
+});
+
+app.delete('/api/dismissed-alerts', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    await pool.execute('DELETE FROM dismissed_alerts WHERE user_id = ?', [userId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error restoring alerts:', error);
+    res.status(500).json({ error: 'Failed to restore alerts' });
+  }
+});
+
+// ── Start ──────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });

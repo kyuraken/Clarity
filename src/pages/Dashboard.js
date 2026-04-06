@@ -9,6 +9,7 @@ import {
   accounts as mockAccounts,
   categoryColors,
 } from '../data/mockData';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
@@ -61,6 +62,7 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export default function Dashboard({ demoMode }) {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,9 +75,10 @@ export default function Dashboard({ demoMode }) {
       return;
     }
 
+    const userId = user?.uid;
     Promise.all([
-      fetch(`${API_URL}/api/accounts`).then(r => r.json()).catch(() => ({ accounts: [] })),
-      fetch(`${API_URL}/api/transactions`).then(r => r.json()).catch(() => ({ transactions: [] })),
+      fetch(`${API_URL}/api/accounts?userId=${userId}`).then(r => r.json()).catch(() => ({ accounts: [] })),
+      fetch(`${API_URL}/api/transactions?userId=${userId}`).then(r => r.json()).catch(() => ({ transactions: [] })),
     ]).then(([accountData, txnData]) => {
       setAccounts(accountData.accounts || []);
       const realTxns = txnData.transactions || [];
@@ -91,7 +94,7 @@ export default function Dashboard({ demoMode }) {
       }
       setLoading(false);
     });
-  }, [demoMode]);
+  }, [demoMode, user]);
 
   // ── Stats ──
   const totalBalance = accounts.reduce((sum, a) => sum + (a.balances?.current ?? a.balance ?? 0), 0);

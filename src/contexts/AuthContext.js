@@ -13,9 +13,17 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setLoading(false);
+      if (user) {
+        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+        fetch(`${API_URL}/api/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: user.uid, email: user.email, displayName: user.displayName }),
+        }).catch(() => {});
+      }
     });
     return unsubscribe;
   }, []);

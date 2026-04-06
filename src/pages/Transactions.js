@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { transactions as mockTransactions, categoryColors } from '../data/mockData';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 const PER_PAGE = 15;
 
 export default function Transactions({ demoMode }) {
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -19,7 +21,7 @@ export default function Transactions({ demoMode }) {
       return;
     }
 
-    fetch(`${API_URL}/api/transactions`)
+    fetch(`${API_URL}/api/transactions?userId=${user?.uid}`)
       .then(res => res.json())
       .then(data => {
         if (data.transactions && data.transactions.length > 0) {
@@ -41,7 +43,7 @@ export default function Transactions({ demoMode }) {
         setTransactions([]);
         setLoading(false);
       });
-  }, [demoMode]);
+  }, [demoMode, user]);
 
   // get unique categories
   const categories = ['All', ...new Set(transactions.map(t => t.category))];
