@@ -49,7 +49,7 @@ A Z-score above 2 means the amount is more than 2 standard deviations above aver
 
 ### 2. New Merchant Never Seen Before (25% weight)
 
-If a transaction appears at a merchant the user has **never transacted with before** (after at least 10 transactions of history), it's considered a new merchant and contributes to the score.
+If a transaction appears at a merchant the user has **never transacted with before** (after at least 10 transactions of history), it's considered a new merchant and contributes to the score. All previously seen merchants are stored in a **HashSet** for O(1) lookup.
 
 **Example:** A charge from "Unknown Foreign Merchant" with no prior history gets flagged.
 

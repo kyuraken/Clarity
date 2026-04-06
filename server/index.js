@@ -135,7 +135,8 @@ function detectAnomalies(transactions) {
 
     // 2. New merchant never seen before (weight: 25%)
     const prevTxns = transactions.filter(t => t !== txn && t.date < txn.date);
-    const isNew = prevTxns.length > 10 && !prevTxns.some(t => getMerchantName(t) === merchant);
+    const seenMerchants = new Set(prevTxns.map(getMerchantName));
+    const isNew = prevTxns.length > 10 && !seenMerchants.has(merchant);
     if (isNew) {
       reasons.push(`First time transaction at ${merchant}`);
       score += 0.25;
