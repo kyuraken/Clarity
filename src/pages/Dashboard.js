@@ -8,6 +8,8 @@ import {
   transactions as mockTransactions,
   accounts as mockAccounts,
   categoryColors,
+  budgets as mockBudgets,
+  plaidCategoryMap,
 } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -61,16 +63,72 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+function BudgetModal({ categories, existing, onSave, onDelete, onClose }) {
+  const [category, setCategory] = useState(existing?.category || categories[0] || '');
+  const [limit, setLimit] = useState(existing?.monthly_limit || '');
+
+  function handleSave() {
+    if (!category || !limit || isNaN(limit) || Number(limit) <= 0) return;
+    onSave(category, Number(limit));
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h3>{existing ? 'Edit Budget' : 'Set Budget'}</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', margin: '16px 0' }}>
+          <div>
+            <label style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Category</label>
+            <select
+              className="filter-input"
+              style={{ width: '100%' }}
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              disabled={!!existing}
+            >
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Monthly Limit ($)</label>
+            <input
+              type="number"
+              className="filter-input"
+              style={{ width: '100%' }}
+              placeholder="e.g. 500"
+              value={limit}
+              onChange={e => setLimit(e.target.value)}
+              min="1"
+            />
+          </div>
+        </div>
+        <div className="modal-actions">
+          {existing && (
+            <button className="btn btn-danger" onClick={() => onDelete(existing.category)}>
+              Delete
+            </button>
+          )}
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ demoMode, dismissed = new Set() }) {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [budgetModal, setBudgetModal] = useState(null); // null | 'new' | { category, monthly_limit }
 
   useEffect(() => {
     if (demoMode) {
       setAccounts(mockAccounts);
       setTransactions(mockTransactions);
+      setBudgets(mockBudgets);
       setLoading(false);
       return;
     }
@@ -79,22 +137,55 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
     Promise.all([
       fetch(`${API_URL}/api/accounts?userId=${userId}`).then(r => r.json()).catch(() => ({ accounts: [] })),
       fetch(`${API_URL}/api/transactions?userId=${userId}`).then(r => r.json()).catch(() => ({ transactions: [] })),
-    ]).then(([accountData, txnData]) => {
+      fetch(`${API_URL}/api/budgets?userId=${userId}`).then(r => r.json()).catch(() => ({ budgets: [] })),
+    ]).then(([accountData, txnData, budgetData]) => {
       setAccounts(accountData.accounts || []);
       const realTxns = txnData.transactions || [];
       if (realTxns.length > 0) {
-        setTransactions(realTxns.map((t, i) => ({
-          id: t.transaction_id || `plaid_${i}`,
-          date: t.date || t.authorized_date,
-          merchant: t.merchant_name || t.name || 'Unknown',
-          category: t.personal_finance_category?.primary || t.category?.[0] || 'Other',
-          amount: -t.amount,
-          pending: t.pending || false,
-        })));
+        setTransactions(realTxns.map((t, i) => {
+          const rawCat = t.personal_finance_category?.primary || t.category?.[0] || 'Other';
+          return {
+            id: t.transaction_id || `plaid_${i}`,
+            date: t.date || t.authorized_date,
+            merchant: t.merchant_name || t.name || 'Unknown',
+            category: plaidCategoryMap[rawCat] || rawCat,
+            amount: -t.amount,
+            pending: t.pending || false,
+          };
+        }));
       }
+      setBudgets(budgetData.budgets || []);
       setLoading(false);
     });
   }, [demoMode, user]);
+
+  async function handleSaveBudget(category, monthlyLimit) {
+    if (!demoMode && user) {
+      await fetch(`${API_URL}/api/budgets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, category, monthlyLimit }),
+      });
+    }
+    setBudgets(prev => {
+      const existing = prev.findIndex(b => b.category === category);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { category, monthly_limit: monthlyLimit };
+        return updated;
+      }
+      return [...prev, { category, monthly_limit: monthlyLimit }];
+    });
+    setBudgetModal(null);
+  }
+
+  async function handleDeleteBudget(category) {
+    if (!demoMode && user) {
+      await fetch(`${API_URL}/api/budgets/${encodeURIComponent(category)}?userId=${user.uid}`, { method: 'DELETE' });
+    }
+    setBudgets(prev => prev.filter(b => b.category !== category));
+    setBudgetModal(null);
+  }
 
   // ── Stats ──
   const totalBalance = accounts.reduce((sum, a) => sum + (a.balances?.current ?? a.balance ?? 0), 0);
@@ -207,6 +298,62 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
         </div>
       </div>
 
+      {/* Budgets */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <h3>Monthly Budgets</h3>
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: '13px', padding: '4px 12px' }}
+            onClick={() => setBudgetModal('new')}
+          >
+            + Add Budget
+          </button>
+        </div>
+        {budgets.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '16px 0', textAlign: 'center' }}>
+            No budgets set. Click "+ Add Budget" to get started.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '8px' }}>
+            {budgets.map(b => {
+              const spent = thisMonthTxns
+                .filter(t => t.category === b.category && t.amount < 0)
+                .reduce((s, t) => s + Math.abs(t.amount), 0);
+              const pct = Math.min((spent / b.monthly_limit) * 100, 100);
+              const color = pct >= 90 ? 'var(--red)' : pct >= 75 ? 'var(--orange)' : 'var(--green)';
+              return (
+                <div key={b.category}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{b.category}</span>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        {formatCurrency(spent)} / {formatCurrency(b.monthly_limit)}
+                      </span>
+                      <button
+                        className="btn btn-ghost"
+                        style={{ fontSize: '11px', padding: '2px 8px' }}
+                        onClick={() => setBudgetModal(b)}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--border)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '4px', transition: 'width 0.3s ease' }} />
+                  </div>
+                  {pct >= 90 && (
+                    <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '4px' }}>
+                      {pct >= 100 ? 'Over budget!' : `${Math.round(pct)}% used — almost at limit`}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Bottom row */}
       <div className="charts-row">
         {/* Recent Transactions */}
@@ -270,6 +417,18 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
           )}
         </div>
       </div>
+
+      {budgetModal && (
+        <BudgetModal
+          categories={[...new Set(transactions.filter(t => t.amount < 0).map(t => t.category))].filter(
+            c => budgetModal === 'new' ? !budgets.find(b => b.category === c) : true
+          )}
+          existing={budgetModal === 'new' ? null : budgetModal}
+          onSave={handleSaveBudget}
+          onDelete={handleDeleteBudget}
+          onClose={() => setBudgetModal(null)}
+        />
+      )}
     </div>
   );
 }

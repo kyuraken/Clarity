@@ -43,6 +43,18 @@ async function initDB() {
     )
   `);
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS budgets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id VARCHAR(128) NOT NULL,
+      category VARCHAR(255) NOT NULL,
+      monthly_limit DECIMAL(10,2) NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_budget (user_id, category)
+    )
+  `);
+
   console.log('Database tables ready');
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { transactions as mockTransactions, categoryColors } from '../data/mockData';
+import { transactions as mockTransactions, categoryColors, plaidCategoryMap } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
@@ -25,14 +25,17 @@ export default function Transactions({ demoMode }) {
       .then(res => res.json())
       .then(data => {
         if (data.transactions && data.transactions.length > 0) {
-          const formatted = data.transactions.map((t, i) => ({
-            id: t.transaction_id || `plaid_${i}`,
-            date: t.date || t.authorized_date,
-            merchant: t.merchant_name || t.name || 'Unknown',
-            category: t.personal_finance_category?.primary || t.category?.[0] || 'Other',
-            amount: -t.amount,
-            pending: t.pending || false,
-          }));
+          const formatted = data.transactions.map((t, i) => {
+            const rawCat = t.personal_finance_category?.primary || t.category?.[0] || 'Other';
+            return {
+              id: t.transaction_id || `plaid_${i}`,
+              date: t.date || t.authorized_date,
+              merchant: t.merchant_name || t.name || 'Unknown',
+              category: plaidCategoryMap[rawCat] || rawCat,
+              amount: -t.amount,
+              pending: t.pending || false,
+            };
+          });
           setTransactions(formatted);
         } else {
           setTransactions([]);

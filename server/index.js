@@ -316,6 +316,52 @@ app.delete('/api/dismissed-alerts', async (req, res) => {
   }
 });
 
+// ── Budgets ────────────────────────────────────────────────────────────────
+
+app.get('/api/budgets', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.json({ budgets: [] });
+  try {
+    const [rows] = await pool.execute(
+      'SELECT category, monthly_limit FROM budgets WHERE user_id = ?',
+      [userId]
+    );
+    res.json({ budgets: rows });
+  } catch (error) {
+    console.error('Error fetching budgets:', error);
+    res.status(500).json({ error: 'Failed to fetch budgets' });
+  }
+});
+
+app.post('/api/budgets', async (req, res) => {
+  const { userId, category, monthlyLimit } = req.body;
+  if (!userId || !category || monthlyLimit == null) return res.status(400).json({ error: 'userId, category, and monthlyLimit required' });
+  try {
+    await pool.execute(
+      `INSERT INTO budgets (user_id, category, monthly_limit) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE monthly_limit = VALUES(monthly_limit)`,
+      [userId, category, monthlyLimit]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving budget:', error);
+    res.status(500).json({ error: 'Failed to save budget' });
+  }
+});
+
+app.delete('/api/budgets/:category', async (req, res) => {
+  const { userId } = req.query;
+  const { category } = req.params;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    await pool.execute('DELETE FROM budgets WHERE user_id = ? AND category = ?', [userId, category]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting budget:', error);
+    res.status(500).json({ error: 'Failed to delete budget' });
+  }
+});
+
 // ── Start ──────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 8080;

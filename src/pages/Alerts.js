@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { transactions as mockTransactions } from '../data/mockData';
+import { transactions as mockTransactions, plaidCategoryMap } from '../data/mockData';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
@@ -49,15 +49,18 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
       .then(data => {
         const txns = data.transactions || [];
         if (txns.length > 0) {
-          setTransactions(txns.map((t, i) => ({
-            id: t.transaction_id || `plaid_${i}`,
-            date: t.date || t.authorized_date,
-            merchant: t.merchant_name || t.name || 'Unknown',
-            category: t.personal_finance_category?.primary || t.category?.[0] || 'Other',
-            amount: -t.amount,
-            pending: t.pending || false,
-            anomaly: t.anomaly || null,
-          })));
+          setTransactions(txns.map((t, i) => {
+            const rawCat = t.personal_finance_category?.primary || t.category?.[0] || 'Other';
+            return {
+              id: t.transaction_id || `plaid_${i}`,
+              date: t.date || t.authorized_date,
+              merchant: t.merchant_name || t.name || 'Unknown',
+              category: plaidCategoryMap[rawCat] || rawCat,
+              amount: -t.amount,
+              pending: t.pending || false,
+              anomaly: t.anomaly || null,
+            };
+          }));
         } else {
           setTransactions(mockTransactions);
         }
@@ -79,8 +82,8 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
     })
     .sort((a, b) => b.anomaly.score - a.anomaly.score);
 
-  const total = transactions.filter(t => t.anomaly).length;
-  const active = total - dismissed.size;
+  const active = transactions.filter(t => t.anomaly && !dismissed.has(t.id)).length;
+  const total = active;
 
   if (loading) {
     return (
@@ -107,14 +110,14 @@ export default function Alerts({ demoMode, dismissed = new Set(), setDismissed =
         <div className="stat-card">
           <div className="stat-label">High Risk</div>
           <div className="stat-value" style={{ color: 'var(--red)' }}>
-            {transactions.filter(t => t.anomaly && t.anomaly.score >= 0.9).length}
+            {transactions.filter(t => t.anomaly && !dismissed.has(t.id) && t.anomaly.score >= 0.9).length}
           </div>
           <div className="stat-change negative">Score ≥ 90</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Medium Risk</div>
           <div className="stat-value" style={{ color: 'var(--orange)' }}>
-            {transactions.filter(t => t.anomaly && t.anomaly.score >= 0.75 && t.anomaly.score < 0.9).length}
+            {transactions.filter(t => t.anomaly && !dismissed.has(t.id) && t.anomaly.score >= 0.75 && t.anomaly.score < 0.9).length}
           </div>
           <div className="stat-change" style={{ color: 'var(--orange)' }}>Score 75–89</div>
         </div>

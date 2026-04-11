@@ -164,6 +164,36 @@ export const monthlySpending = (() => {
 
 export const anomalies = transactions.filter(t => t.anomaly);
 
+export const budgets = [
+  { category: 'Food & Drink', monthly_limit: 600 },
+  { category: 'Shopping', monthly_limit: 400 },
+  { category: 'Transportation', monthly_limit: 200 },
+  { category: 'Entertainment', monthly_limit: 100 },
+];
+
+export const plaidCategoryMap = {
+  'FOOD_AND_DRINK': 'Food & Drink',
+  'GROCERIES': 'Food & Drink',
+  'RESTAURANTS': 'Food & Drink',
+  'SHOPPING': 'Shopping',
+  'GENERAL_MERCHANDISE': 'Shopping',
+  'APPAREL_AND_ACCESSORIES': 'Shopping',
+  'TRANSPORTATION': 'Transportation',
+  'TRAVEL': 'Travel',
+  'ENTERTAINMENT': 'Entertainment',
+  'PERSONAL_CARE': 'Health',
+  'MEDICAL': 'Health',
+  'RENT_AND_UTILITIES': 'Bills & Utilities',
+  'LOAN_PAYMENTS': 'Bills & Utilities',
+  'BANK_FEES': 'Bills & Utilities',
+  'TRANSFER_IN': 'Income',
+  'INCOME': 'Income',
+  'TRANSFER_OUT': 'Transfer',
+  'GENERAL_SERVICES': 'Bills & Utilities',
+  'GOVERNMENT_AND_NON_PROFIT': 'Bills & Utilities',
+  'HOME_IMPROVEMENT': 'Shopping',
+};
+
 export const categoryColors = {
   'Food & Drink': '#f97316',
   'Shopping': '#8b5cf6',
