@@ -63,6 +63,68 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+// Simple linear regression
+function linearRegression(xs, ys) {
+  const n = xs.length;
+  const sumX = xs.reduce((s, v) => s + v, 0);
+  const sumY = ys.reduce((s, v) => s + v, 0);
+  const sumXY = xs.reduce((s, _, i) => s + xs[i] * ys[i], 0);
+  const sumX2 = xs.reduce((s, v) => s + v * v, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  if (denom === 0) return { slope: 0, intercept: sumY / n };
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+function computeForecast(transactions) {
+  // Group by month + category
+  const monthly = {};
+  for (const t of transactions) {
+    if (t.amount >= 0) continue; // spending only
+    const month = (t.date || '').substring(0, 7);
+    if (!month) continue;
+    if (!monthly[month]) monthly[month] = {};
+    monthly[month][t.category] = (monthly[month][t.category] || 0) + Math.abs(t.amount);
+  }
+
+  const months = Object.keys(monthly).sort();
+  if (months.length < 2) return [];
+
+  const categories = new Set();
+  for (const m of months) Object.keys(monthly[m]).forEach(c => categories.add(c));
+
+  const nextIdx = months.length;
+  const results = [];
+
+  for (const cat of categories) {
+    const values = months.map(m => monthly[m][cat] || 0);
+    if (values.reduce((s, v) => s + v, 0) === 0) continue;
+
+    let predicted;
+    if (values.length < 3) {
+      predicted = values.reduce((s, v) => s + v, 0) / values.length;
+    } else {
+      const xs = values.map((_, i) => i);
+      const { slope, intercept } = linearRegression(xs, values);
+      predicted = slope * nextIdx + intercept;
+    }
+    predicted = Math.max(0, predicted);
+
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    const trend = predicted > avg * 1.1 ? 'up' : predicted < avg * 0.9 ? 'down' : 'flat';
+
+    results.push({
+      category: cat,
+      predicted: Math.round(predicted * 100) / 100,
+      average: Math.round(avg * 100) / 100,
+      trend,
+    });
+  }
+
+  return results.sort((a, b) => b.predicted - a.predicted);
+}
+
 function BudgetModal({ categories, existing, onSave, onDelete, onClose }) {
   const [category, setCategory] = useState(existing?.category || categories[0] || '');
   const [limit, setLimit] = useState(existing?.monthly_limit || '');
@@ -121,6 +183,7 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [forecast, setForecast] = useState([]);
   const [loading, setLoading] = useState(true);
   const [budgetModal, setBudgetModal] = useState(null); // null | 'new' | { category, monthly_limit }
 
@@ -129,6 +192,7 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
       setAccounts(mockAccounts);
       setTransactions(mockTransactions);
       setBudgets(mockBudgets);
+      setForecast(computeForecast(mockTransactions).slice(0, 6));
       setLoading(false);
       return;
     }
@@ -138,7 +202,8 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
       fetch(`${API_URL}/api/accounts?userId=${userId}`).then(r => r.json()).catch(() => ({ accounts: [] })),
       fetch(`${API_URL}/api/transactions?userId=${userId}`).then(r => r.json()).catch(() => ({ transactions: [] })),
       fetch(`${API_URL}/api/budgets?userId=${userId}`).then(r => r.json()).catch(() => ({ budgets: [] })),
-    ]).then(([accountData, txnData, budgetData]) => {
+      fetch(`${API_URL}/api/forecast?userId=${userId}`).then(r => r.json()).catch(() => ({ forecast: {} })),
+    ]).then(([accountData, txnData, budgetData, forecastData]) => {
       setAccounts(accountData.accounts || []);
       const realTxns = txnData.transactions || [];
       if (realTxns.length > 0) {
@@ -155,6 +220,12 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
         }));
       }
       setBudgets(budgetData.budgets || []);
+      // Convert forecast object to sorted array
+      const forecastArr = Object.entries(forecastData.forecast || {})
+        .map(([category, data]) => ({ category, ...data }))
+        .sort((a, b) => b.predicted - a.predicted)
+        .slice(0, 6);
+      setForecast(forecastArr);
       setLoading(false);
     });
   }, [demoMode, user]);
@@ -195,6 +266,9 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
   const monthlySpending = thisMonthTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const monthlyIncome = thisMonthTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const savingsRate = monthlyIncome > 0 ? Math.round(((monthlyIncome - monthlySpending) / monthlyIncome) * 100) : 0;
+
+  // ── Next month forecast ──
+  const forecastTotal = forecast.reduce((s, f) => s + f.predicted, 0);
 
   // ── Spending by category (this month) ──
   const categoryData = Object.entries(
@@ -353,6 +427,40 @@ export default function Dashboard({ demoMode, dismissed = new Set() }) {
           </div>
         )}
       </div>
+
+      {/* Spending Forecast */}
+      {forecast.length > 0 && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3>Next Month Forecast</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              Linear regression · Predicted total {formatCurrency(forecastTotal)}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px', paddingTop: '8px' }}>
+            {forecast.map(f => {
+              const trendColor = f.trend === 'up' ? 'var(--red)' : f.trend === 'down' ? 'var(--green)' : 'var(--text-muted)';
+              const trendArrow = f.trend === 'up' ? '↑' : f.trend === 'down' ? '↓' : '→';
+              const diff = f.predicted - f.average;
+              const pct = f.average > 0 ? Math.round((diff / f.average) * 100) : 0;
+              return (
+                <div key={f.category} style={{ padding: '12px', background: 'var(--bg-hover)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: categoryColors[f.category] || 'var(--text-secondary)' }}>
+                      {f.category}
+                    </span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: trendColor }}>{trendArrow}</span>
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 700 }}>{formatCurrency(f.predicted)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {pct === 0 ? 'Same as average' : `${pct > 0 ? '+' : ''}${pct}% vs avg ${formatCurrency(f.average)}`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bottom row */}
       <div className="charts-row">

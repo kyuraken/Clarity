@@ -316,6 +316,106 @@ app.delete('/api/dismissed-alerts', async (req, res) => {
   }
 });
 
+// spending forecast 
+
+// Simple linear regression: returns { slope, intercept }
+function linearRegression(xs, ys) {
+  const n = xs.length;
+  const sumX = xs.reduce((s, v) => s + v, 0);
+  const sumY = ys.reduce((s, v) => s + v, 0);
+  const sumXY = xs.reduce((s, _, i) => s + xs[i] * ys[i], 0);
+  const sumX2 = xs.reduce((s, v) => s + v * v, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  if (denom === 0) return { slope: 0, intercept: sumY / n };
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+function forecastSpending(transactions) {
+  // Group by month + category (spending only)
+  const monthly = {};
+  for (const t of transactions) {
+    const amount = -t.amount; // stored as negative for spending
+    if (amount <= 0) continue;
+    const month = (t.date || '').substring(0, 7);
+    if (!month) continue;
+    const cat = t.personal_finance_category?.primary || t.category?.[0] || 'Other';
+    if (!monthly[month]) monthly[month] = {};
+    monthly[month][cat] = (monthly[month][cat] || 0) + amount;
+  }
+
+  const months = Object.keys(monthly).sort();
+  if (months.length < 2) {
+    return { forecast: {}, method: 'insufficient_data', monthsOfData: months.length };
+  }
+
+  // Collect all categories
+  const categories = new Set();
+  for (const m of months) Object.keys(monthly[m]).forEach(c => categories.add(c));
+
+  const forecast = {};
+  const nextMonthIdx = months.length;
+
+  for (const cat of categories) {
+    const values = months.map(m => monthly[m][cat] || 0);
+    const nonZero = values.filter(v => v > 0);
+    if (nonZero.length === 0) continue;
+
+    let predicted;
+    let method;
+
+    if (values.length < 3) {
+      // Not enough data for regression — use average
+      predicted = values.reduce((s, v) => s + v, 0) / values.length;
+      method = 'average';
+    } else {
+      // Linear regression on month index
+      const xs = values.map((_, i) => i);
+      const { slope, intercept } = linearRegression(xs, values);
+      predicted = slope * nextMonthIdx + intercept;
+      method = 'linear_regression';
+    }
+
+    predicted = Math.max(0, predicted);
+    const avg = values.reduce((s, v) => s + v, 0) / values.length;
+    const trend = predicted > avg * 1.1 ? 'up' : predicted < avg * 0.9 ? 'down' : 'flat';
+
+    forecast[cat] = {
+      predicted: Math.round(predicted * 100) / 100,
+      average: Math.round(avg * 100) / 100,
+      trend,
+      method,
+    };
+  }
+
+  return { forecast, method: 'mixed', monthsOfData: months.length };
+}
+
+app.get('/api/forecast', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.json({ forecast: {}, method: 'no_user' });
+  try {
+    const [rows] = await pool.execute(
+      'SELECT access_token FROM plaid_items WHERE user_id = ?',
+      [userId]
+    );
+    if (rows.length === 0) return res.json({ forecast: {}, method: 'no_data' });
+
+    const allTransactions = [];
+    for (const row of rows) {
+      const response = await plaidClient.transactionsSync({ access_token: row.access_token });
+      allTransactions.push(...response.data.added);
+    }
+
+    const result = forecastSpending(allTransactions);
+    res.json(result);
+  } catch (error) {
+    console.error('Error generating forecast:', error.response?.data || error);
+    res.status(500).json({ error: 'Failed to generate forecast' });
+  }
+});
+
 // ── Budgets ────────────────────────────────────────────────────────────────
 
 app.get('/api/budgets', async (req, res) => {
